@@ -1,10 +1,10 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -47,13 +47,23 @@ func (c *ImportMail) Execute(emails []string) (err error) {
 	for _, eml := range emails {
 		log.Printf("procssing %s", eml)
 
-		mail, err := ioutil.ReadFile(eml)
+		mail, err := os.Open(eml)
 		if err != nil {
 			return err
 		}
-		mail = bytes.ReplaceAll(mail, []byte("\n"), []byte("\r\n"))
 
-		err = c.client.Append("INBOX", nil, zeroTime, bytes.NewBuffer(mail))
+		var buf bytes.Buffer
+		scan := bufio.NewScanner(mail)
+		for scan.Scan() {
+			buf.WriteString(scan.Text())
+			buf.WriteString("\r\n")
+		}
+		err = scan.Err()
+		if err != nil {
+			return err
+		}
+
+		err = c.client.Append("INBOX", nil, zeroTime, &buf)
 		if err != nil {
 			return err
 		}
