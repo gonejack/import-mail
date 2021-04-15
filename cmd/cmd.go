@@ -14,7 +14,7 @@ import (
 	"github.com/emersion/go-imap/client"
 )
 
-var warnSize = humanize.MiByte * 20
+var warnSize = humanize.MByte * 20
 var zeroTime time.Time
 
 type ImportMail struct {
