@@ -10,9 +10,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/emersion/go-imap/client"
 )
 
+var warnSize = humanize.MiByte * 20
 var zeroTime time.Time
 
 type ImportMail struct {
@@ -50,6 +52,15 @@ func (c *ImportMail) Execute(emails []string) (err error) {
 		mail, err := os.Open(eml)
 		if err != nil {
 			return err
+		}
+
+		info, err := mail.Stat()
+		if err != nil {
+			return err
+		}
+
+		if size := int(info.Size()); size > warnSize {
+			log.Printf("mail size %s larger than %s", humanize.Bytes(uint64(size)), humanize.Bytes(uint64(warnSize)))
 		}
 
 		var buf bytes.Buffer
