@@ -11,26 +11,26 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/emersion/go-imap"
+	"github.com/emersion/go-imap-appendlimit"
 	"github.com/emersion/go-imap/client"
 )
 
-var warnSize = humanize.MByte * 20
+var appendLimitSize int
 var zeroTime time.Time
 
 type ImportMail struct {
-	Host        string
-	Port        int
-	Username    string
-	Password    string
-	ImportedDir string
+	Host           string
+	Port           int
+	Username       string
+	Password       string
+	ImportedDir    string
+	ArgAppendLimit string
 
 	client *client.Client
 }
 
 func (c *ImportMail) Execute(emails []string) (err error) {
-	if len(emails) == 0 {
-		emails, _ = filepath.Glob("*.eml")
-	}
 	if len(emails) == 0 {
 		return errors.New("no eml given")
 	}
@@ -46,6 +46,24 @@ func (c *ImportMail) Execute(emails []string) (err error) {
 	}
 	defer c.disconnect()
 
+	limit, err := c.getAppendLimit()
+	if err != nil {
+		return
+	}
+	appendLimitSize = humanize.IByte * int(limit)
+	if appendLimitSize == 0 {
+		parsed, perr := humanize.ParseBytes(c.ArgAppendLimit)
+		if perr != nil {
+			return perr
+		}
+		appendLimitSize = int(parsed)
+	}
+	log.Printf("APPENDLIMIT is %s", humanize.Bytes(uint64(appendLimitSize)))
+
+	return c.appendMails(emails)
+}
+
+func (c *ImportMail) appendMails(emails []string) error {
 	for _, eml := range emails {
 		log.Printf("procssing %s", eml)
 
@@ -54,13 +72,15 @@ func (c *ImportMail) Execute(emails []string) (err error) {
 			return err
 		}
 
-		info, err := mail.Stat()
-		if err != nil {
-			return err
-		}
-
-		if size := int(info.Size()); size > warnSize {
-			log.Printf("mail size %s larger than %s", humanize.Bytes(uint64(size)), humanize.Bytes(uint64(warnSize)))
+		if appendLimitSize > 0 {
+			stat, err := mail.Stat()
+			if err != nil {
+				return err
+			}
+			if size := int(stat.Size()); size > appendLimitSize {
+				log.Printf("mail size %s larger than %s", humanize.Bytes(uint64(size)), humanize.Bytes(uint64(appendLimitSize)))
+				continue
+			}
 		}
 
 		var buf bytes.Buffer
@@ -85,9 +105,20 @@ func (c *ImportMail) Execute(emails []string) (err error) {
 		}
 	}
 
-	return
+	return nil
 }
 
+func (c *ImportMail) getAppendLimit() (size uint32, err error) {
+	status, err := c.client.Status("INBOX", []imap.StatusItem{appendlimit.Capability})
+	if err != nil {
+		return
+	}
+	val := status.Items[appendlimit.StatusAppendLimit]
+	if val == nil {
+		return
+	}
+	return imap.ParseNumber(val)
+}
 func (c *ImportMail) mkdir() error {
 	err := os.MkdirAll(c.ImportedDir, 0777)
 	if err != nil {
