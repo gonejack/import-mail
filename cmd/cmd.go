@@ -78,7 +78,7 @@ func (c *ImportMail) appendMails(emails []string) error {
 				return err
 			}
 			if size := int(stat.Size()); size > appendLimitSize {
-				log.Printf("skipped, %s's size %s larger than APPENDLIMIT %s", eml, humanize.Bytes(uint64(size)), humanize.Bytes(uint64(appendLimitSize)))
+				log.Printf("skipped %s's size %s larger than APPENDLIMIT %s", eml, humanize.Bytes(uint64(size)), humanize.Bytes(uint64(appendLimitSize)))
 				continue
 			}
 		}
