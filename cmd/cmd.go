@@ -65,7 +65,7 @@ func (c *ImportMail) Execute(emails []string) (err error) {
 
 func (c *ImportMail) appendMails(emails []string) error {
 	for _, eml := range emails {
-		log.Printf("procssing %s", eml)
+		log.Printf("process %s", eml)
 
 		mail, err := os.Open(eml)
 		if err != nil {
@@ -78,7 +78,7 @@ func (c *ImportMail) appendMails(emails []string) error {
 				return err
 			}
 			if size := int(stat.Size()); size > appendLimitSize {
-				log.Printf("mail size %s larger than %s", humanize.Bytes(uint64(size)), humanize.Bytes(uint64(appendLimitSize)))
+				log.Printf("skipped, %s's size %s larger than APPENDLIMIT %s", eml, humanize.Bytes(uint64(size)), humanize.Bytes(uint64(appendLimitSize)))
 				continue
 			}
 		}
@@ -107,7 +107,6 @@ func (c *ImportMail) appendMails(emails []string) error {
 
 	return nil
 }
-
 func (c *ImportMail) getAppendLimit() (size uint32, err error) {
 	status, err := c.client.Status("INBOX", []imap.StatusItem{appendlimit.Capability})
 	if err != nil {
