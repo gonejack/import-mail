@@ -20,12 +20,14 @@ var appendLimitSize int
 var zeroTime time.Time
 
 type ImportMail struct {
-	Host           string
-	Port           int
-	Username       string
-	Password       string
-	ImportedDir    string
-	ArgAppendLimit string
+	Host        string
+	Port        int
+	Username    string
+	Password    string
+	RemoteDir   string
+	RemoteLimit string
+
+	SaveImportedTo string
 
 	client *client.Client
 }
@@ -46,13 +48,13 @@ func (c *ImportMail) Execute(emails []string) (err error) {
 	}
 	defer c.disconnect()
 
-	limit, err := c.getAppendLimit()
+	limit, err := c.queryAppendLimit()
 	if err != nil {
 		return
 	}
 	appendLimitSize = humanize.IByte * int(limit)
 	if appendLimitSize == 0 {
-		parsed, perr := humanize.ParseBytes(c.ArgAppendLimit)
+		parsed, perr := humanize.ParseBytes(c.RemoteLimit)
 		if perr != nil {
 			return perr
 		}
@@ -94,12 +96,12 @@ func (c *ImportMail) appendMails(emails []string) error {
 			return err
 		}
 
-		err = c.client.Append("INBOX", nil, zeroTime, &buf)
+		err = c.client.Append(c.RemoteDir, nil, zeroTime, &buf)
 		if err != nil {
 			return err
 		}
 
-		err = os.Rename(eml, filepath.Join(c.ImportedDir, filepath.Base(eml)))
+		err = os.Rename(eml, filepath.Join(c.SaveImportedTo, filepath.Base(eml)))
 		if err != nil {
 			return err
 		}
@@ -107,8 +109,8 @@ func (c *ImportMail) appendMails(emails []string) error {
 
 	return nil
 }
-func (c *ImportMail) getAppendLimit() (size uint32, err error) {
-	status, err := c.client.Status("INBOX", []imap.StatusItem{appendlimit.Capability})
+func (c *ImportMail) queryAppendLimit() (size uint32, err error) {
+	status, err := c.client.Status(c.RemoteDir, []imap.StatusItem{appendlimit.Capability})
 	if err != nil {
 		return
 	}
@@ -119,7 +121,7 @@ func (c *ImportMail) getAppendLimit() (size uint32, err error) {
 	return imap.ParseNumber(val)
 }
 func (c *ImportMail) mkdir() error {
-	err := os.MkdirAll(c.ImportedDir, 0777)
+	err := os.MkdirAll(c.SaveImportedTo, 0777)
 	if err != nil {
 		return fmt.Errorf("cannot make images dir %s", err)
 	}

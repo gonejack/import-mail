@@ -6,16 +6,18 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gonejack/import-mail/cmd"
 	"github.com/spf13/cobra"
+
+	"github.com/gonejack/import-mail/cmd"
 )
 
 var (
-	host           string
-	port           int
-	username       string
-	password       string
-	argAppendLimit string
+	host        string
+	port        int
+	username    string
+	password    string
+	remotedir   string
+	remoteLimit string
 
 	prog = &cobra.Command{
 		Use:   "import-mail *.eml",
@@ -41,7 +43,8 @@ func init() {
 		flags.IntVarP(&port, "port", "", 993, "port")
 		flags.StringVarP(&username, "username", "", "", "username")
 		flags.StringVarP(&password, "password", "", "", "password")
-		flags.StringVarP(&argAppendLimit, "append-limit", "", "20M", "will not import email exceed this size")
+		flags.StringVarP(&remotedir, "remote-dir", "", "INBOX", "remote directory")
+		flags.StringVarP(&remoteLimit, "remote-limit", "", "20M", "will not import email exceed this size")
 	}
 }
 
@@ -64,8 +67,9 @@ func run(c *cobra.Command, args []string) error {
 		Port:           port,
 		Username:       username,
 		Password:       password,
-		ImportedDir:    "imported",
-		ArgAppendLimit: argAppendLimit,
+		RemoteDir:      remotedir,
+		RemoteLimit:    remoteLimit,
+		SaveImportedTo: "imported",
 	}
 
 	return exec.Execute(args)
