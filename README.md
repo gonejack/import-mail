@@ -21,10 +21,11 @@ Usage:
   import-mail *.eml [flags]
 
 Flags:
-      --host string       host
-      --port int          port (default 993)
-      --username string   username
-      --password string   password
-  -v, --verbose           verbose
-  -h, --help              help for import-mail
+      --host string           host
+      --port int              port (default 993)
+      --username string       username
+      --password string       password
+      --remote-dir string     remote directory (default "INBOX")
+      --remote-limit string   will not import email exceed this size (default "20M")
+  -h, --help                  help for import-mail
 ```
