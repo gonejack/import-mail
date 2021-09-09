@@ -3,8 +3,9 @@ module github.com/gonejack/import-mail
 go 1.16
 
 require (
+	github.com/alecthomas/kong v0.2.17
 	github.com/dustin/go-humanize v1.0.0
 	github.com/emersion/go-imap v1.0.6
 	github.com/emersion/go-imap-appendlimit v0.0.0-20190308131241-25671c986a6a
-	github.com/spf13/cobra v1.2.1
+	golang.org/x/text v0.3.5 // indirect
 )

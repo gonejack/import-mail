@@ -10,36 +10,50 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/alecthomas/kong"
 	"github.com/dustin/go-humanize"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap-appendlimit"
 	"github.com/emersion/go-imap/client"
 )
 
-var appendLimitSize int
 var zeroTime time.Time
 
-type ImportMail struct {
-	Host        string
-	Port        int
-	Username    string
-	Password    string
-	RemoteDir   string
-	RemoteLimit string
+type options struct {
+	Host      string `required:"" help:"Set IMAP host."`
+	Port      int    `default:"993" help:"Set IMAP port."`
+	Username  string `required:"" help:"Set IMAP username."`
+	Password  string `required:"" help:"Set IMAP password."`
+	RemoteDir string `name:"remote-dir" default:"INBOX" help:"Set IMAP directory."`
+	SizeLimit string `name:"size-limit" default:"20M" help:"Set size limit, mail exceed this limit will be skipped."`
 
-	SaveImportedTo string
-
-	client *client.Client
+	Eml []string `arg:"" optional:""`
 }
 
-func (c *ImportMail) Execute(emails []string) (err error) {
-	if len(emails) == 0 {
-		return errors.New("no eml given")
+type ImportMail struct {
+	options
+	SaveImportedTo string
+	sizeLimit      int
+	client         *client.Client
+}
+
+func (c *ImportMail) Run() (err error) {
+	kong.Parse(&c.options,
+		kong.Name("import-mail"),
+		kong.Description("Command line tool for importing .eml files to IMAP account."),
+		kong.UsageOnError(),
+	)
+
+	if len(c.Eml) == 0 {
+		c.Eml, _ = filepath.Glob("*.eml")
+	}
+	if len(c.Eml) == 0 {
+		return errors.New("not .eml file found")
 	}
 
-	err = c.mkdir()
+	err = os.MkdirAll(c.SaveImportedTo, 0777)
 	if err != nil {
-		return
+		return fmt.Errorf("cannot make dir %s: %s", c.SaveImportedTo, err)
 	}
 
 	err = c.connect()
@@ -48,24 +62,21 @@ func (c *ImportMail) Execute(emails []string) (err error) {
 	}
 	defer c.disconnect()
 
-	limit, err := c.queryAppendLimit()
+	localLimit, err := humanize.ParseBytes(c.SizeLimit)
 	if err != nil {
 		return
 	}
-	appendLimitSize = humanize.IByte * int(limit)
-	if appendLimitSize == 0 {
-		parsed, perr := humanize.ParseBytes(c.RemoteLimit)
-		if perr != nil {
-			return perr
-		}
-		appendLimitSize = int(parsed)
+	c.sizeLimit = int(localLimit)
+
+	remoteLimit, err := c.queryAppendLimit()
+	if err != nil && remoteLimit != 0 {
+		c.sizeLimit = humanize.IByte * int(remoteLimit)
 	}
-	log.Printf("APPENDLIMIT is %s", humanize.Bytes(uint64(appendLimitSize)))
+	log.Printf("APPENDLIMIT is %s", humanize.Bytes(uint64(c.sizeLimit)))
 
-	return c.appendMails(emails)
+	return c.doAppend(c.Eml)
 }
-
-func (c *ImportMail) appendMails(emails []string) error {
+func (c *ImportMail) doAppend(emails []string) error {
 	for _, eml := range emails {
 		log.Printf("process %s", eml)
 
@@ -74,13 +85,13 @@ func (c *ImportMail) appendMails(emails []string) error {
 			return err
 		}
 
-		if appendLimitSize > 0 {
+		if c.sizeLimit > 0 {
 			stat, err := mail.Stat()
 			if err != nil {
 				return err
 			}
-			if size := int(stat.Size()); size > appendLimitSize {
-				log.Printf("skipped %s's size %s larger than APPENDLIMIT %s", eml, humanize.Bytes(uint64(size)), humanize.Bytes(uint64(appendLimitSize)))
+			if size := int(stat.Size()); size > c.sizeLimit {
+				log.Printf("skipped %s's size %s larger than APPENDLIMIT %s", eml, humanize.Bytes(uint64(size)), humanize.Bytes(uint64(c.sizeLimit)))
 				continue
 			}
 		}
@@ -95,12 +106,10 @@ func (c *ImportMail) appendMails(emails []string) error {
 		if err != nil {
 			return err
 		}
-
 		err = c.client.Append(c.RemoteDir, nil, zeroTime, &buf)
 		if err != nil {
 			return err
 		}
-
 		err = os.Rename(eml, filepath.Join(c.SaveImportedTo, filepath.Base(eml)))
 		if err != nil {
 			return err
@@ -119,14 +128,6 @@ func (c *ImportMail) queryAppendLimit() (size uint32, err error) {
 		return
 	}
 	return imap.ParseNumber(val)
-}
-func (c *ImportMail) mkdir() error {
-	err := os.MkdirAll(c.SaveImportedTo, 0777)
-	if err != nil {
-		return fmt.Errorf("cannot make images dir %s", err)
-	}
-
-	return nil
 }
 func (c *ImportMail) connect() (err error) {
 	c.client, err = client.DialTLS(fmt.Sprintf("%s:%d", c.Host, c.Port), nil)
