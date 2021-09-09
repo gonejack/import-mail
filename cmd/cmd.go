@@ -24,23 +24,29 @@ type options struct {
 	Password  string `required:"" help:"Set IMAP password."`
 	RemoteDir string `name:"remote-dir" default:"INBOX" help:"Set IMAP directory."`
 	SizeLimit string `name:"size-limit" default:"20M" help:"Set size limit, mail exceed this limit will be skipped."`
+	About     bool   `help:"Show about."`
 
 	Eml []string `arg:"" optional:""`
 }
 
-type ImportMail struct {
+type Import struct {
 	options
 	SaveImportedTo string
 	sizeLimit      int
 	client         *client.Client
 }
 
-func (c *ImportMail) Run() (err error) {
+func (c *Import) Run() (err error) {
 	kong.Parse(&c.options,
 		kong.Name("import-mail"),
 		kong.Description("Command line tool for importing .eml files to IMAP account."),
 		kong.UsageOnError(),
 	)
+
+	if c.About {
+		fmt.Println("Visit https://github.com/gonejack/import-mail")
+		return
+	}
 
 	if len(c.Eml) == 0 {
 		c.Eml, _ = filepath.Glob("*.eml")
@@ -72,10 +78,10 @@ func (c *ImportMail) Run() (err error) {
 	}
 	log.Printf("APPENDLIMIT is %s", humanize.Bytes(uint64(c.sizeLimit)))
 
-	return c.doAppend(c.Eml)
+	return c.doAppend()
 }
-func (c *ImportMail) doAppend(emails []string) error {
-	for _, eml := range emails {
+func (c *Import) doAppend() error {
+	for _, eml := range c.Eml {
 		log.Printf("process %s", eml)
 
 		mail, err := os.Open(eml)
@@ -88,7 +94,8 @@ func (c *ImportMail) doAppend(emails []string) error {
 			if err != nil {
 				return err
 			}
-			if size := int(stat.Size()); size > c.sizeLimit {
+			size := int(stat.Size())
+			if size > c.sizeLimit {
 				log.Printf("skipped %s's size %s larger than APPENDLIMIT %s", eml, humanize.Bytes(uint64(size)), humanize.Bytes(uint64(c.sizeLimit)))
 				continue
 			}
@@ -116,7 +123,7 @@ func (c *ImportMail) doAppend(emails []string) error {
 
 	return nil
 }
-func (c *ImportMail) queryAppendLimit() (size uint32, err error) {
+func (c *Import) queryAppendLimit() (size uint32, err error) {
 	status, err := c.client.Status(c.RemoteDir, []imap.StatusItem{appendlimit.Capability})
 	if err != nil {
 		return
@@ -127,13 +134,13 @@ func (c *ImportMail) queryAppendLimit() (size uint32, err error) {
 	}
 	return imap.ParseNumber(val)
 }
-func (c *ImportMail) connect() (err error) {
+func (c *Import) connect() (err error) {
 	c.client, err = client.DialTLS(fmt.Sprintf("%s:%d", c.Host, c.Port), nil)
 	if err == nil {
 		err = c.client.Login(c.Username, c.Password)
 	}
 	return
 }
-func (c *ImportMail) disconnect() (err error) {
+func (c *Import) disconnect() (err error) {
 	return c.client.Logout()
 }

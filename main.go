@@ -12,7 +12,7 @@ func init() {
 }
 
 func main() {
-	c := cmd.ImportMail{
+	c := cmd.Import{
 		SaveImportedTo: "imported",
 	}
 	err := c.Run()
