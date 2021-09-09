@@ -17,8 +17,6 @@ import (
 	"github.com/emersion/go-imap/client"
 )
 
-var zeroTime time.Time
-
 type options struct {
 	Host      string `required:"" help:"Set IMAP host."`
 	Port      int    `default:"993" help:"Set IMAP port."`
@@ -106,7 +104,7 @@ func (c *ImportMail) doAppend(emails []string) error {
 		if err != nil {
 			return err
 		}
-		err = c.client.Append(c.RemoteDir, nil, zeroTime, &buf)
+		err = c.client.Append(c.RemoteDir, nil, time.Time{}, &buf)
 		if err != nil {
 			return err
 		}
