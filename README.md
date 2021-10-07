@@ -15,17 +15,13 @@ This command line tool imports .eml files into INBOX of IMAP account.
 > import-mail --host imap.example.com --username username --password password *.eml
 ```
 ```
-Command line tool for importing .eml files to IMAP account.
-
-Usage:
-  import-mail *.eml [flags]
-
 Flags:
-      --host string           host
-      --port int              port (default 993)
-      --username string       username
-      --password string       password
-      --remote-dir string     remote directory (default "INBOX")
-      --remote-limit string   will not import email exceed this size (default "20M")
-  -h, --help                  help for import-mail
+  -h, --help                  Show context-sensitive help.
+      --host=STRING           Set IMAP host.
+      --port=993              Set IMAP port.
+      --username=STRING       Set IMAP username.
+      --password=STRING       Set IMAP password.
+      --remote-dir="INBOX"    Set IMAP directory.
+      --size-limit="20M"      Set size limit, mail exceed this limit will be skipped.
+      --about                 Show about.
 ```

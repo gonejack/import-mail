@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -47,12 +48,11 @@ func (c *Import) Run() (err error) {
 		fmt.Println("Visit https://github.com/gonejack/import-mail")
 		return
 	}
-
 	if len(c.Eml) == 0 {
 		c.Eml, _ = filepath.Glob("*.eml")
 	}
 	if len(c.Eml) == 0 {
-		return errors.New("not .eml file found")
+		return errors.New("no .eml file found")
 	}
 
 	err = os.MkdirAll(c.SaveImportedTo, 0777)
@@ -96,25 +96,17 @@ func (c *Import) doAppend() error {
 			}
 			size := int(stat.Size())
 			if size > c.sizeLimit {
-				log.Printf("skipped %s's size %s larger than APPENDLIMIT %s", eml, humanize.Bytes(uint64(size)), humanize.Bytes(uint64(c.sizeLimit)))
+				log.Printf("skipped, %s's size %s is larger than APPENDLIMIT %s", eml, humanize.Bytes(uint64(size)), humanize.Bytes(uint64(c.sizeLimit)))
 				continue
 			}
 		}
 
-		var buf bytes.Buffer
-		scan := bufio.NewScanner(mail)
-		for scan.Scan() {
-			buf.WriteString(scan.Text())
-			buf.WriteString("\r\n")
-		}
-		err = scan.Err()
+		err = c.doAppendOne(mail)
 		if err != nil {
 			return err
 		}
-		err = c.client.Append(c.RemoteDir, nil, time.Time{}, &buf)
-		if err != nil {
-			return err
-		}
+
+		_ = mail.Close()
 		err = os.Rename(eml, filepath.Join(c.SaveImportedTo, filepath.Base(eml)))
 		if err != nil {
 			return err
@@ -122,6 +114,19 @@ func (c *Import) doAppend() error {
 	}
 
 	return nil
+}
+func (c *Import) doAppendOne(mail io.Reader) (err error) {
+	var buf bytes.Buffer
+	scan := bufio.NewScanner(mail)
+	for scan.Scan() {
+		buf.WriteString(scan.Text())
+		buf.WriteString("\r\n")
+	}
+	err = scan.Err()
+	if err != nil {
+		return err
+	}
+	return c.client.Append(c.RemoteDir, nil, time.Time{}, &buf)
 }
 func (c *Import) queryAppendLimit() (size uint32, err error) {
 	status, err := c.client.Status(c.RemoteDir, []imap.StatusItem{appendlimit.Capability})
