@@ -73,7 +73,7 @@ func (c *Import) Run() (err error) {
 	c.sizeLimit = int(localLimit)
 
 	remoteLimit, err := c.queryAppendLimit()
-	if err != nil && remoteLimit != 0 {
+	if err == nil && remoteLimit != 0 {
 		c.sizeLimit = humanize.IByte * int(remoteLimit)
 	}
 	log.Printf("APPENDLIMIT is %s", humanize.Bytes(uint64(c.sizeLimit)))
