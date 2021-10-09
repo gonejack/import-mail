@@ -33,8 +33,10 @@ type options struct {
 type Import struct {
 	options
 	SaveImportedTo string
-	sizeLimit      int
-	client         *client.Client
+
+	limit  int
+	buf    bytes.Buffer
+	client *client.Client
 }
 
 func (c *Import) Run() (err error) {
@@ -43,7 +45,6 @@ func (c *Import) Run() (err error) {
 		kong.Description("Command line tool for importing .eml files to IMAP account."),
 		kong.UsageOnError(),
 	)
-
 	if c.About {
 		fmt.Println("Visit https://github.com/gonejack/import-mail")
 		return
@@ -70,13 +71,13 @@ func (c *Import) Run() (err error) {
 	if err != nil {
 		return
 	}
-	c.sizeLimit = int(localLimit)
+	c.limit = int(localLimit)
 
 	remoteLimit, err := c.queryAppendLimit()
 	if err == nil && remoteLimit != 0 {
-		c.sizeLimit = humanize.IByte * int(remoteLimit)
+		c.limit = humanize.IByte * int(remoteLimit)
 	}
-	log.Printf("APPENDLIMIT is %s", humanize.Bytes(uint64(c.sizeLimit)))
+	log.Printf("APPENDLIMIT is %s", humanize.Bytes(uint64(c.limit)))
 
 	return c.doAppend()
 }
@@ -89,14 +90,14 @@ func (c *Import) doAppend() error {
 			return err
 		}
 
-		if c.sizeLimit > 0 {
+		if c.limit > 0 {
 			stat, err := mail.Stat()
 			if err != nil {
 				return err
 			}
 			size := int(stat.Size())
-			if size > c.sizeLimit {
-				log.Printf("skipped, %s's size %s is larger than APPENDLIMIT %s", eml, humanize.Bytes(uint64(size)), humanize.Bytes(uint64(c.sizeLimit)))
+			if size > c.limit {
+				log.Printf("skipped, %s's size %s is larger than APPENDLIMIT %s", eml, humanize.Bytes(uint64(size)), humanize.Bytes(uint64(c.limit)))
 				continue
 			}
 		}
@@ -116,17 +117,19 @@ func (c *Import) doAppend() error {
 	return nil
 }
 func (c *Import) doAppendOne(mail io.Reader) (err error) {
-	var buf bytes.Buffer
+	defer c.buf.Reset()
+
 	scan := bufio.NewScanner(mail)
 	for scan.Scan() {
-		buf.WriteString(scan.Text())
-		buf.WriteString("\r\n")
+		c.buf.WriteString(scan.Text())
+		c.buf.WriteString("\r\n")
 	}
 	err = scan.Err()
 	if err != nil {
 		return err
 	}
-	return c.client.Append(c.RemoteDir, nil, time.Time{}, &buf)
+
+	return c.client.Append(c.RemoteDir, nil, time.Time{}, &c.buf)
 }
 func (c *Import) queryAppendLimit() (size uint32, err error) {
 	status, err := c.client.Status(c.RemoteDir, []imap.StatusItem{appendlimit.Capability})
