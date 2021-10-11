@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -83,15 +82,8 @@ func (c *Import) Run() (err error) {
 }
 func (c *Import) doAppend() error {
 	for _, eml := range c.Eml {
-		log.Printf("process %s", eml)
-
-		mail, err := os.Open(eml)
-		if err != nil {
-			return err
-		}
-
 		if c.limit > 0 {
-			stat, err := mail.Stat()
+			stat, err := os.Stat(eml)
 			if err != nil {
 				return err
 			}
@@ -102,12 +94,13 @@ func (c *Import) doAppend() error {
 			}
 		}
 
-		err = c.doAppendOne(mail)
+		log.Printf("process %s", eml)
+
+		err := c.doAppendOne(eml)
 		if err != nil {
 			return err
 		}
 
-		_ = mail.Close()
 		err = os.Rename(eml, filepath.Join(c.SaveImportedTo, filepath.Base(eml)))
 		if err != nil {
 			return err
@@ -116,10 +109,16 @@ func (c *Import) doAppend() error {
 
 	return nil
 }
-func (c *Import) doAppendOne(mail io.Reader) (err error) {
+func (c *Import) doAppendOne(eml string) (err error) {
+	fd, err := os.Open(eml)
+	if err != nil {
+		return err
+	}
+	defer fd.Close()
+
 	defer c.buf.Reset()
 
-	scan := bufio.NewScanner(mail)
+	scan := bufio.NewScanner(fd)
 	for scan.Scan() {
 		c.buf.WriteString(scan.Text())
 		c.buf.WriteString("\r\n")
