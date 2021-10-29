@@ -110,22 +110,21 @@ func (c *Import) doAppend() error {
 	return nil
 }
 func (c *Import) doAppendOne(eml string) (err error) {
-	fd, err := os.Open(eml)
+	f, err := os.Open(eml)
 	if err != nil {
-		return err
+		return
 	}
-	defer fd.Close()
-
+	defer f.Close()
 	defer c.buf.Reset()
 
-	scan := bufio.NewScanner(fd)
+	scan := bufio.NewScanner(f)
 	for scan.Scan() {
 		c.buf.WriteString(scan.Text())
 		c.buf.WriteString("\r\n")
 	}
 	err = scan.Err()
 	if err != nil {
-		return err
+		return
 	}
 
 	return c.client.Append(c.RemoteDir, nil, time.Time{}, &c.buf)
