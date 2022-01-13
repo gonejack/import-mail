@@ -1,4 +1,4 @@
-package cmd
+package importmail
 
 import (
 	"bufio"
@@ -10,56 +10,28 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/alecthomas/kong"
 	"github.com/dustin/go-humanize"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap-appendlimit"
 	"github.com/emersion/go-imap/client"
 )
 
-type options struct {
-	Host      string `required:"" help:"Set IMAP host."`
-	Port      int    `default:"993" help:"Set IMAP port."`
-	Username  string `required:"" help:"Set IMAP username."`
-	Password  string `required:"" help:"Set IMAP password."`
-	RemoteDir string `name:"remote-dir" default:"INBOX" help:"Set IMAP directory."`
-	SizeLimit string `name:"size-limit" default:"20M" help:"Set size limit, mail exceed this limit will be skipped."`
-	About     bool   `help:"Show about."`
-
-	Eml []string `arg:"" optional:""`
-}
-
 type Import struct {
-	options
-	SaveImportedTo string
+	Options
 
-	limit  int
-	buf    bytes.Buffer
+	appendLimit int
+	buffer      bytes.Buffer
+
 	client *client.Client
 }
 
 func (c *Import) Run() (err error) {
-	kong.Parse(&c.options,
-		kong.Name("import-mail"),
-		kong.Description("Command line tool for importing .eml files to IMAP account."),
-		kong.UsageOnError(),
-	)
-	if c.About {
-		fmt.Println("Visit https://github.com/gonejack/import-mail")
-		return
-	}
-	if len(c.Eml) == 0 {
-		c.Eml, _ = filepath.Glob("*.eml")
-	}
 	if len(c.Eml) == 0 {
 		return errors.New("no .eml file found")
 	}
-
-	err = os.MkdirAll(c.SaveImportedTo, 0777)
-	if err != nil {
-		return fmt.Errorf("cannot make dir %s: %s", c.SaveImportedTo, err)
-	}
-
+	return c.run()
+}
+func (c *Import) run() (err error) {
 	err = c.connect()
 	if err != nil {
 		return
@@ -70,26 +42,26 @@ func (c *Import) Run() (err error) {
 	if err != nil {
 		return
 	}
-	c.limit = int(localLimit)
+	c.appendLimit = int(localLimit)
 
 	remoteLimit, err := c.queryAppendLimit()
 	if err == nil && remoteLimit != 0 {
-		c.limit = humanize.IByte * int(remoteLimit)
+		c.appendLimit = humanize.IByte * int(remoteLimit)
 	}
-	log.Printf("APPENDLIMIT is %s", humanize.Bytes(uint64(c.limit)))
+	log.Printf("APPENDLIMIT is %s", humanize.Bytes(uint64(c.appendLimit)))
 
 	return c.doAppend()
 }
 func (c *Import) doAppend() error {
 	for _, eml := range c.Eml {
-		if c.limit > 0 {
+		if c.appendLimit > 0 {
 			stat, err := os.Stat(eml)
 			if err != nil {
 				return err
 			}
 			size := int(stat.Size())
-			if size > c.limit {
-				log.Printf("skipped, %s's size %s is larger than APPENDLIMIT %s", eml, humanize.Bytes(uint64(size)), humanize.Bytes(uint64(c.limit)))
+			if size > c.appendLimit {
+				log.Printf("skipped, %s's size %s is larger than APPENDLIMIT %s", eml, humanize.Bytes(uint64(size)), humanize.Bytes(uint64(c.appendLimit)))
 				continue
 			}
 		}
@@ -101,6 +73,7 @@ func (c *Import) doAppend() error {
 			return err
 		}
 
+		_ = os.MkdirAll(c.SaveImportedTo, 0766)
 		err = os.Rename(eml, filepath.Join(c.SaveImportedTo, filepath.Base(eml)))
 		if err != nil {
 			return err
@@ -115,19 +88,19 @@ func (c *Import) doAppendOne(eml string) (err error) {
 		return
 	}
 	defer f.Close()
-	defer c.buf.Reset()
+	defer c.buffer.Reset()
 
 	scan := bufio.NewScanner(f)
 	for scan.Scan() {
-		c.buf.WriteString(scan.Text())
-		c.buf.WriteString("\r\n")
+		c.buffer.WriteString(scan.Text())
+		c.buffer.WriteString("\r\n")
 	}
 	err = scan.Err()
 	if err != nil {
 		return
 	}
 
-	return c.client.Append(c.RemoteDir, nil, time.Time{}, &c.buf)
+	return c.client.Append(c.RemoteDir, nil, time.Time{}, &c.buffer)
 }
 func (c *Import) queryAppendLimit() (size uint32, err error) {
 	status, err := c.client.Status(c.RemoteDir, []imap.StatusItem{appendlimit.Capability})

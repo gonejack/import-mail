@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/gonejack/import-mail/cmd"
+	"github.com/gonejack/import-mail/importmail"
 )
 
 func init() {
@@ -12,10 +12,10 @@ func init() {
 }
 
 func main() {
-	c := cmd.Import{
-		SaveImportedTo: "imported",
+	cmd := importmail.Import{
+		Options: importmail.MustParseOptions(),
 	}
-	err := c.Run()
+	err := cmd.Run()
 	if err != nil {
 		log.Fatal(err)
 	}
