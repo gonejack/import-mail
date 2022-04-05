@@ -12,7 +12,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/emersion/go-imap"
-	"github.com/emersion/go-imap-appendlimit"
 	"github.com/emersion/go-imap/client"
 )
 
@@ -103,15 +102,11 @@ func (c *Import) doAppendOne(eml string) (err error) {
 	return c.client.Append(c.RemoteDir, nil, time.Time{}, &c.buffer)
 }
 func (c *Import) queryAppendLimit() (size uint32, err error) {
-	status, err := c.client.Status(c.RemoteDir, []imap.StatusItem{appendlimit.Capability})
+	status, err := c.client.Status(c.RemoteDir, []imap.StatusItem{imap.StatusAppendLimit})
 	if err != nil {
 		return
 	}
-	val := status.Items[appendlimit.StatusAppendLimit]
-	if val == nil {
-		return
-	}
-	return imap.ParseNumber(val)
+	return status.AppendLimit, nil
 }
 func (c *Import) connect() (err error) {
 	c.client, err = client.DialTLS(fmt.Sprintf("%s:%d", c.Host, c.Port), nil)

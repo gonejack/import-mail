@@ -6,7 +6,6 @@ require (
 	github.com/alecthomas/kong v0.2.22
 	github.com/dustin/go-humanize v1.0.0
 	github.com/emersion/go-imap v1.2.0
-	github.com/emersion/go-imap-appendlimit v0.0.0-20210907172056-e3baed77bbe4
 )
 
 require (
