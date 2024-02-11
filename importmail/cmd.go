@@ -90,6 +90,9 @@ func (c *Import) doAppendOne(eml string) (err error) {
 	defer c.buffer.Reset()
 
 	scan := bufio.NewScanner(f)
+	const maxBufSize = 2 * 1024 * 1024 // max line buffer 2MB
+	buffer := make([]byte, maxBufSize)
+	scan.Buffer(buffer, maxBufSize)
 	for scan.Scan() {
 		c.buffer.WriteString(scan.Text())
 		c.buffer.WriteString("\r\n")
