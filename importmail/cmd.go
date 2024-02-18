@@ -17,11 +17,8 @@ import (
 
 type Import struct {
 	Options
-
 	appendLimit int
-	buffer      bytes.Buffer
-
-	client *client.Client
+	client      *client.Client
 }
 
 func (c *Import) Run() (err error) {
@@ -87,19 +84,18 @@ func (c *Import) doAppendOne(eml string) (err error) {
 		return
 	}
 	defer f.Close()
-	defer c.buffer.Reset()
-
+	buff := bytes.NewBuffer(nil)
 	scan := bufio.NewScanner(f)
+	scan.Buffer(nil, c.appendLimit)
 	for scan.Scan() {
-		c.buffer.WriteString(scan.Text())
-		c.buffer.WriteString("\r\n")
+		buff.WriteString(scan.Text())
+		buff.WriteString("\r\n")
 	}
 	err = scan.Err()
 	if err != nil {
 		return
 	}
-
-	return c.client.Append(c.RemoteDir, nil, time.Time{}, &c.buffer)
+	return c.client.Append(c.RemoteDir, nil, time.Time{}, buff)
 }
 func (c *Import) queryAppendLimit() (size uint32, err error) {
 	status, err := c.client.Status(c.RemoteDir, []imap.StatusItem{imap.StatusAppendLimit})
