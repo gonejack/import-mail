@@ -49,7 +49,7 @@ func (c *Import) run() (err error) {
 	return c.doAppend()
 }
 func (c *Import) doAppend() error {
-	for _, eml := range c.Eml {
+	for i, eml := range c.Eml {
 		if c.appendLimit > 0 {
 			stat, err := os.Stat(eml)
 			if err != nil {
@@ -61,21 +61,19 @@ func (c *Import) doAppend() error {
 				continue
 			}
 		}
-
 		log.Printf("process %s", eml)
-
 		err := c.doAppendOne(eml)
 		if err != nil {
 			return err
 		}
-
-		_ = os.MkdirAll(c.SaveImportedTo, 0766)
+		if i == 0 {
+			_ = os.MkdirAll(c.SaveImportedTo, 0766)
+		}
 		err = os.Rename(eml, filepath.Join(c.SaveImportedTo, filepath.Base(eml)))
 		if err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 func (c *Import) doAppendOne(eml string) (err error) {
@@ -86,7 +84,7 @@ func (c *Import) doAppendOne(eml string) (err error) {
 	defer f.Close()
 	buff := bytes.NewBuffer(nil)
 	scan := bufio.NewScanner(f)
-	scan.Buffer(nil, c.appendLimit)
+	scan.Buffer(nil, c.maxTokenSize(f))
 	for scan.Scan() {
 		buff.WriteString(scan.Text())
 		buff.WriteString("\r\n")
@@ -103,6 +101,16 @@ func (c *Import) queryAppendLimit() (size uint32, err error) {
 		return
 	}
 	return status.AppendLimit, nil
+}
+func (c *Import) maxTokenSize(f *os.File) int {
+	if c.appendLimit > 0 {
+		return c.appendLimit
+	}
+	st, e := f.Stat()
+	if e == nil {
+		return int(st.Size())
+	}
+	return humanize.GiByte
 }
 func (c *Import) connect() (err error) {
 	c.client, err = client.DialTLS(fmt.Sprintf("%s:%d", c.Host, c.Port), nil)
