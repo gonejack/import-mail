@@ -86,7 +86,7 @@ func (c *Import) doAppendOne(eml string) (err error) {
 	scan := bufio.NewScanner(f)
 	scan.Buffer(nil, c.maxTokenSize(f))
 	for scan.Scan() {
-		buff.WriteString(scan.Text())
+		buff.Write(scan.Bytes())
 		buff.WriteString("\r\n")
 	}
 	err = scan.Err()
