@@ -7,7 +7,7 @@ This command line tool imports .eml files into INBOX of IMAP account.
 
 ### Install
 ```shell
-> go get github.com/gonejack/import-mail
+> go install github.com/gonejack/import-mail@latest
 ```
 
 ### Usage
